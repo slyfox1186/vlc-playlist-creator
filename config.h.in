@@ -1,0 +1,4 @@
+#define VLCPlaylistCreator_VERSION_MAJOR @VLCPlaylistCreator_VERSION_MAJOR@
+#define VLCPlaylistCreator_VERSION_MINOR @VLCPlaylistCreator_VERSION_MINOR@
+#define VLCPlaylistCreator_VERSION_PATCH @VLCPlaylistCreator_VERSION_PATCH@
+#define VLCPlaylistCreator_VERSION "@VLCPlaylistCreator_VERSION@"

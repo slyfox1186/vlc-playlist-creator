@@ -17,21 +17,10 @@ This application creates VLC-compatible XSPF playlists from a directory of video
    cd vlc-playlist-creator
    ```
 
-2. Run the configure script:
+2. Run the installer script:
    ```
-   chmod +x configure.sh
-   ./configure.sh
-   ```
-
-3. Build the project:
-   ```
-   cd build
-   make
-   ```
-
-4. Install the project (requires sudo):
-   ```
-   sudo make install
+   chmod +x install.sh
+   ./install.sh
    ```
 
 The program will be installed to `/usr/local/bin`.

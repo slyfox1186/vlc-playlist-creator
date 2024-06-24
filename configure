@@ -1,0 +1,66 @@
+# Configuration variables
+prefix="/usr/local"
+exec_prefix="${prefix}"
+bindir="${exec_prefix}/bin"
+mandir="${prefix}/share/man"
+includedir="${prefix}/include"
+libdir="${exec_prefix}/lib"
+srcdir="$(dirname "$0")"
+
+# Functions for displaying messages
+error() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
+notice() {
+    echo "Notice: $1"
+}
+
+# Check for required tools
+check_tool() {
+    local tool="$1"
+    command -v "$tool" >/dev/null 2>&1 || error "$tool is required but it's not installed."
+}
+
+# Check for necessary tools
+check_tool "g++"
+check_tool "ffprobe"
+check_tool "pkg-config"
+
+# Check for necessary libraries
+pkg-config --exists --print-errors "libavformat" || error "libavformat is required but it's not installed."
+pkg-config --exists --print-errors "libavcodec" || error "libavcodec is required but it's not installed."
+pkg-config --exists --print-errors "libavutil" || error "libavutil is required but it's not installed."
+pkg-config --exists --print-errors "libswscale" || error "libswscale is required but it's not installed."
+
+# Create Makefile
+cat << EOF > Makefile
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2 \$(shell pkg-config --cflags libavformat libavcodec libavutil libswscale)
+LDFLAGS = \$(shell pkg-config --libs libavformat libavcodec libavutil libswscale)
+SRCS = vlc_playlist_creator.cpp
+OBJS = \$(SRCS:.cpp=.o)
+EXEC = vlc-playlist-creator
+
+all: \$(EXEC)
+
+\$(EXEC): \$(OBJS)
+    \$(CXX) \$(CXXFLAGS) -o \$(EXEC) \$(OBJS) \$(LDFLAGS)
+
+%.o: %.cpp
+    \$(CXX) \$(CXXFLAGS) -c \$< -o \$@
+
+install: \$(EXEC)
+    install -d \$(DESTDIR)\$(bindir)
+    install -m 755 \$(EXEC) \$(DESTDIR)\$(bindir)/\$(EXEC)
+
+clean:
+    rm -f \$(EXEC) \$(OBJS)
+
+.PHONY: all install clean
+EOF
+
+# Summary
+notice "Configuration complete. To build the program, run 'make'."
+notice "To install the program, run 'make install'."

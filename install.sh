@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [[ "$EUID" -ne 0 ]]; then
+    echo "Please run this script as root or with sudo."
+    exit 1
+fi
+
 fail() {
     printf "\n%s\n\n" "[ERROR] $1"
     exit 1
@@ -25,4 +30,4 @@ cmake -S "$SCRIPT_DIR" \
 cd "build" || fail "Failed to cd into the \"build\" directory."
 
 make "-j$(nproc --all)"
-sudo make install
+make install

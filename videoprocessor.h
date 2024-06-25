@@ -5,6 +5,7 @@
 #include <QString>
 #include <QFile>
 #include <QTextStream>
+#include <QStringList>
 
 class VideoProcessor : public QObject {
     Q_OBJECT
@@ -14,6 +15,7 @@ public:
 
 public slots:
     void process();
+    void processManualPlaylist(const QStringList &filePaths);
 
 signals:
     void outputGenerated(const QString &output);
@@ -37,6 +39,7 @@ private:
     int getAudioBitrate(const QString &filePath);
     QString getFileExtension(const QString &filePath);
     void log(const QString &message);
+    QString generatePlaylist(const QStringList &videoFiles);
 };
 
 #endif // VIDEOPROCESSOR_H

@@ -6,29 +6,34 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QThread>
-#include <QSplitter>
 
 VLCPlaylistCreator::VLCPlaylistCreator(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle("VLC Playlist Creator");
-    
+
     QWidget *centralWidget = new QWidget(this);
     QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
     setCentralWidget(centralWidget);
+
+    m_mainTabWidget = new QTabWidget(this);
+    mainLayout->addWidget(m_mainTabWidget);
+
+    QWidget *processTab = new QWidget(this);
+    QVBoxLayout *processLayout = new QVBoxLayout(processTab);
 
     QHBoxLayout *inputLayout = new QHBoxLayout();
     m_directoryInput = new QLineEdit(this);
     QPushButton *browseButton = new QPushButton("Browse", this);
     inputLayout->addWidget(m_directoryInput);
     inputLayout->addWidget(browseButton);
-    mainLayout->addLayout(inputLayout);
+    processLayout->addLayout(inputLayout);
 
     m_verboseCheckbox = new QCheckBox("Verbose", this);
     m_orderByQualityCheckbox = new QCheckBox("Order by Quality", this);
-    mainLayout->addWidget(m_verboseCheckbox);
-    mainLayout->addWidget(m_orderByQualityCheckbox);
+    processLayout->addWidget(m_verboseCheckbox);
+    processLayout->addWidget(m_orderByQualityCheckbox);
 
     QSplitter *splitter = new QSplitter(Qt::Vertical, this);
-    mainLayout->addWidget(splitter);
+    processLayout->addWidget(splitter);
 
     m_outputTextEdit = new QTextEdit(this);
     m_outputTextEdit->setReadOnly(true);
@@ -39,10 +44,51 @@ VLCPlaylistCreator::VLCPlaylistCreator(QWidget *parent) : QMainWindow(parent) {
     splitter->addWidget(m_logTextEdit);
 
     QPushButton *processButton = new QPushButton("Process", this);
-    mainLayout->addWidget(processButton);
+    processLayout->addWidget(processButton);
+
+    m_mainTabWidget->addTab(processTab, "Process Directory");
+
+    // Manual Playlist Tab
+    QWidget *manualTab = new QWidget(this);
+    QVBoxLayout *manualLayout = new QVBoxLayout(manualTab);
+
+    QHBoxLayout *manualInputLayout = new QHBoxLayout();
+    m_videoInput = new QLineEdit(this);
+    m_videoInput->setPlaceholderText("Enter video file path...");
+    manualInputLayout->addWidget(m_videoInput);
+
+    QPushButton *browseVideoButton = new QPushButton("Browse", this);
+    manualInputLayout->addWidget(browseVideoButton);
+    manualLayout->addLayout(manualInputLayout);
+
+    QPushButton *addButton = new QPushButton("Add to Playlist", this);
+    addButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    manualLayout->addWidget(addButton);
+
+    m_displayTabWidget = new QTabWidget(this);
+    m_playlist = new QListWidget(this);
+    m_displayTabWidget->addTab(m_playlist, "Full Path");
+    m_displayTabWidget->addTab(new QListWidget(this), "File Name");
+    m_displayTabWidget->addTab(new QListWidget(this), "Parent Folder");
+
+    manualLayout->addWidget(m_displayTabWidget);
+
+    m_mainTabWidget->addTab(manualTab, "Manual Playlist");
+
+    // Create menu bar
+    menuBar = new QMenuBar(this);
+    fileMenu = new QMenu("File", this);
+    addVideoAction = new QAction("Add Video", this);
+    fileMenu->addAction(addVideoAction);
+    menuBar->addMenu(fileMenu);
+    setMenuBar(menuBar);
 
     connect(browseButton, &QPushButton::clicked, this, &VLCPlaylistCreator::browseDirectory);
     connect(processButton, &QPushButton::clicked, this, &VLCPlaylistCreator::processDirectory);
+    connect(addButton, &QPushButton::clicked, this, &VLCPlaylistCreator::addVideoToPlaylist);
+    connect(browseVideoButton, &QPushButton::clicked, this, &VLCPlaylistCreator::browseVideoFile);
+    connect(addVideoAction, &QAction::triggered, this, &VLCPlaylistCreator::openAddVideoDialog);
+    connect(m_displayTabWidget, &QTabWidget::currentChanged, this, &VLCPlaylistCreator::switchDisplayMode);
 
     resize(800, 600);
 }
@@ -93,4 +139,51 @@ void VLCPlaylistCreator::displayError(const QString &error) {
 
 void VLCPlaylistCreator::appendLog(const QString &message) {
     m_logTextEdit->append(message);
+}
+
+void VLCPlaylistCreator::openAddVideoDialog() {
+    m_videoInput->setFocus();
+}
+
+void VLCPlaylistCreator::addVideoToPlaylist() {
+    QString videoPath = m_videoInput->text();
+    if (!videoPath.isEmpty()) {
+        m_videoPaths.append(videoPath);
+        updatePlaylistDisplay();
+        m_videoInput->clear();
+    } else {
+        QMessageBox::warning(this, "Input Error", "Please enter a valid video file path.");
+    }
+}
+
+void VLCPlaylistCreator::browseVideoFile() {
+    QString videoPath = QFileDialog::getOpenFileName(this, "Select Video File");
+    if (!videoPath.isEmpty()) {
+        m_videoPaths.append(videoPath);
+        updatePlaylistDisplay();
+    }
+}
+
+void VLCPlaylistCreator::switchDisplayMode(int) {
+    updatePlaylistDisplay();
+}
+
+void VLCPlaylistCreator::updatePlaylistDisplay() {
+    QListWidget *currentListWidget = qobject_cast<QListWidget *>(m_displayTabWidget->currentWidget());
+    if (!currentListWidget) return;
+
+    currentListWidget->clear();
+    for (const QString &videoPath : qAsConst(m_videoPaths)) {
+        switch (m_displayTabWidget->currentIndex()) {
+            case 0: // Full Path
+                currentListWidget->addItem(videoPath);
+                break;
+            case 1: // File Name
+                currentListWidget->addItem(QFileInfo(videoPath).fileName());
+                break;
+            case 2: // Parent Folder
+                currentListWidget->addItem(QFileInfo(videoPath).absolutePath());
+                break;
+        }
+    }
 }

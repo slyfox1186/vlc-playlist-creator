@@ -35,6 +35,33 @@ void VideoProcessor::process() {
     
     log("Found " + QString::number(videoFiles.size()) + " video files");
 
+    QString output = generatePlaylist(videoFiles);
+
+    emit outputGenerated(output);
+    log("Process completed");
+    emit finished();
+}
+
+void VideoProcessor::processManualPlaylist(const QStringList &filePaths) {
+    log("Starting manual playlist process");
+    
+    if (filePaths.isEmpty()) {
+        emit errorOccurred("No files provided for manual playlist");
+        log("Error: No files provided for manual playlist");
+        emit finished();
+        return;
+    }
+    
+    log("Processing " + QString::number(filePaths.size()) + " files");
+
+    QString output = generatePlaylist(filePaths);
+
+    emit outputGenerated(output);
+    log("Manual playlist process completed");
+    emit finished();
+}
+
+QString VideoProcessor::generatePlaylist(const QStringList &videoFiles) {
     QList<QPair<QString, int>> videoQualityList;
 
     for (const QString &filePath : videoFiles) {
@@ -103,7 +130,7 @@ void VideoProcessor::process() {
     stream << "</playlist>\n";
 
     // Save the playlist to a file
-    QString playlistFileName = dir.filePath("vlc_playlist.xspf");
+    QString playlistFileName = QFileInfo(videoFiles.first()).dir().filePath("vlc_playlist.xspf");
     QFile playlistFile(playlistFileName);
     if (playlistFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream fileStream(&playlistFile);
@@ -116,12 +143,9 @@ void VideoProcessor::process() {
         log("Error: Failed to save playlist file: " + playlistFileName);
     }
 
-    emit outputGenerated(output);
-    log("Process completed");
-    emit finished();
+    return output;
 }
 
-// ... (keep the rest of the methods as they were in the previous version)
 QStringList VideoProcessor::findVideoFiles(const QString &directory) {
     QStringList videoFiles;
     QDir dir(directory);

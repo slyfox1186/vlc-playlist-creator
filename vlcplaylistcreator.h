@@ -12,6 +12,9 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QSplitter>
+#include <QSettings>
+#include <QComboBox>
+#include "videoprocessor.h"
 
 class VLCPlaylistCreator : public QMainWindow {
     Q_OBJECT
@@ -29,11 +32,13 @@ private slots:
     void addVideoToPlaylist();
     void browseVideoFile();
     void switchDisplayMode(int index);
+    void processManualPlaylist();
+    void clearManualPlaylist();
 
 private:
     QLineEdit *m_directoryInput;
     QCheckBox *m_verboseCheckbox;
-    QCheckBox *m_orderByQualityCheckbox;
+    QComboBox *m_sortTypeComboBox;
     QTextEdit *m_outputTextEdit;
     QTextEdit *m_logTextEdit;
     QLineEdit *m_videoInput;
@@ -44,8 +49,13 @@ private:
     QMenu *fileMenu;
     QAction *addVideoAction;
     QStringList m_videoPaths;
+    QSettings m_settings;
 
     void updatePlaylistDisplay();
+    QString getOutputFilePath();
+    void saveLastDirectory(const QString &path);
+    QString getLastDirectory();
+    VideoProcessor::SortType getCurrentSortType();
 };
 
 #endif // VLCPLAYLISTCREATOR_H

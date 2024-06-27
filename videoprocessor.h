@@ -11,11 +11,19 @@ class VideoProcessor : public QObject {
     Q_OBJECT
 
 public:
-    VideoProcessor(const QString &directory, bool verbose, bool orderByQuality);
+    enum SortType {
+        NoSort,
+        Quality,
+        Name,
+        Duration,
+        Size
+    };
+
+    VideoProcessor(const QString &directory, bool verbose, SortType sortType);
 
 public slots:
-    void process();
-    void processManualPlaylist(const QStringList &filePaths);
+    void process(const QString &outputPath);
+    void processManualPlaylist(const QStringList &filePaths, const QString &outputPath);
 
 signals:
     void outputGenerated(const QString &output);
@@ -26,7 +34,7 @@ signals:
 private:
     QString m_directory;
     bool m_verbose;
-    bool m_orderByQuality;
+    SortType m_sortType;
     QFile m_logFile;
     QTextStream m_logStream;
     
@@ -37,9 +45,11 @@ private:
     double getVideoBitrate(const QString &filePath);
     QString getAudioCodec(const QString &filePath);
     int getAudioBitrate(const QString &filePath);
+    qint64 getFileSize(const QString &filePath);
     QString getFileExtension(const QString &filePath);
     void log(const QString &message);
-    QString generatePlaylist(const QStringList &videoFiles);
+    QString generatePlaylist(const QStringList &videoFiles, const QString &outputPath);
+    void sortVideoFiles(QList<QPair<QString, int>> &videoList);
 };
 
 #endif // VIDEOPROCESSOR_H

@@ -7,15 +7,15 @@
 #include <QTextStream>
 #include <algorithm>
 
-VideoProcessor::VideoProcessor(const QString &directory, bool verbose, bool orderByQuality)
-    : m_directory(directory), m_verbose(verbose), m_orderByQuality(orderByQuality) {
+VideoProcessor::VideoProcessor(const QString &directory, bool verbose, SortType sortType)
+    : m_directory(directory), m_verbose(verbose), m_sortType(sortType) {
     QString logFileName = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss") + "_vlc_playlist_creator.log";
     m_logFile.setFileName(logFileName);
     m_logFile.open(QIODevice::WriteOnly | QIODevice::Text);
     m_logStream.setDevice(&m_logFile);
 }
 
-void VideoProcessor::process() {
+void VideoProcessor::process(const QString &outputPath) {
     log("Starting process");
     QDir dir(m_directory);
     if (!dir.exists()) {
@@ -35,14 +35,14 @@ void VideoProcessor::process() {
     
     log("Found " + QString::number(videoFiles.size()) + " video files");
 
-    QString output = generatePlaylist(videoFiles);
+    QString output = generatePlaylist(videoFiles, outputPath);
 
     emit outputGenerated(output);
     log("Process completed");
     emit finished();
 }
 
-void VideoProcessor::processManualPlaylist(const QStringList &filePaths) {
+void VideoProcessor::processManualPlaylist(const QStringList &filePaths, const QString &outputPath) {
     log("Starting manual playlist process");
     
     if (filePaths.isEmpty()) {
@@ -54,14 +54,14 @@ void VideoProcessor::processManualPlaylist(const QStringList &filePaths) {
     
     log("Processing " + QString::number(filePaths.size()) + " files");
 
-    QString output = generatePlaylist(filePaths);
+    QString output = generatePlaylist(filePaths, outputPath);
 
     emit outputGenerated(output);
     log("Manual playlist process completed");
     emit finished();
 }
 
-QString VideoProcessor::generatePlaylist(const QStringList &videoFiles) {
+QString VideoProcessor::generatePlaylist(const QStringList &videoFiles, const QString &outputPath) {
     QList<QPair<QString, int>> videoQualityList;
 
     for (const QString &filePath : videoFiles) {
@@ -71,6 +71,8 @@ QString VideoProcessor::generatePlaylist(const QStringList &videoFiles) {
         double videoBitrate = getVideoBitrate(filePath);
         QString audioCodec = getAudioCodec(filePath);
         int audioBitrate = getAudioBitrate(filePath);
+        int duration = getVideoDuration(filePath);
+        qint64 fileSize = getFileSize(filePath);
 
         int qualityScore = 0;
         qualityScore += videoCodec.contains("h264", Qt::CaseInsensitive) ? 10 : 5;
@@ -78,18 +80,14 @@ QString VideoProcessor::generatePlaylist(const QStringList &videoFiles) {
         qualityScore += static_cast<int>(videoBitrate / 1000);
         qualityScore += audioCodec.contains("aac", Qt::CaseInsensitive) ? 10 : 5;
         qualityScore += audioBitrate / 32;
+        qualityScore += duration / 60000; // Add points for longer videos (1 point per minute)
+        qualityScore += static_cast<int>(fileSize / (1024 * 1024)); // Add points for larger files (1 point per MB)
 
         videoQualityList.append(qMakePair(filePath, qualityScore));
         log("File processed: " + filePath + ", Quality Score: " + QString::number(qualityScore));
     }
 
-    if (m_orderByQuality) {
-        log("Ordering videos by quality");
-        std::sort(videoQualityList.begin(), videoQualityList.end(),
-                  [](const QPair<QString, int> &a, const QPair<QString, int> &b) {
-                      return a.second > b.second;
-                  });
-    }
+    sortVideoFiles(videoQualityList);
 
     QString output;
     QTextStream stream(&output);
@@ -129,21 +127,51 @@ QString VideoProcessor::generatePlaylist(const QStringList &videoFiles) {
     stream << "\t</extension>\n";
     stream << "</playlist>\n";
 
-    // Save the playlist to a file
-    QString playlistFileName = QFileInfo(videoFiles.first()).dir().filePath("vlc_playlist.xspf");
-    QFile playlistFile(playlistFileName);
+    QFile playlistFile(outputPath);
     if (playlistFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream fileStream(&playlistFile);
         fileStream.setCodec("UTF-8");
         fileStream << output;
         playlistFile.close();
-        log("Playlist saved to: " + playlistFileName);
+        log("Playlist saved to: " + outputPath);
     } else {
-        emit errorOccurred("Failed to save playlist file: " + playlistFileName);
-        log("Error: Failed to save playlist file: " + playlistFileName);
+        emit errorOccurred("Failed to save playlist file: " + outputPath);
+        log("Error: Failed to save playlist file: " + outputPath);
     }
 
     return output;
+}
+
+void VideoProcessor::sortVideoFiles(QList<QPair<QString, int>> &videoList) {
+    switch (m_sortType) {
+        case Quality:
+            std::sort(videoList.begin(), videoList.end(),
+                      [](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                          return a.second > b.second;
+                      });
+            break;
+        case Name:
+            std::sort(videoList.begin(), videoList.end(),
+                      [](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                          return QFileInfo(a.first).fileName() < QFileInfo(b.first).fileName();
+                      });
+            break;
+        case Duration:
+            std::sort(videoList.begin(), videoList.end(),
+                      [this](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                          return getVideoDuration(a.first) > getVideoDuration(b.first);
+                      });
+            break;
+        case Size:
+            std::sort(videoList.begin(), videoList.end(),
+                      [this](const QPair<QString, int> &a, const QPair<QString, int> &b) {
+                          return getFileSize(a.first) > getFileSize(b.first);
+                      });
+            break;
+        case NoSort:
+        default:
+            break;
+    }
 }
 
 QStringList VideoProcessor::findVideoFiles(const QString &directory) {
@@ -217,6 +245,10 @@ int VideoProcessor::getAudioBitrate(const QString &filePath) {
     bool ok;
     int bitrate = QString(process.readAllStandardOutput()).trimmed().toInt(&ok);
     return ok ? bitrate / 1000 : 0;
+}
+
+qint64 VideoProcessor::getFileSize(const QString &filePath) {
+    return QFileInfo(filePath).size();
 }
 
 QString VideoProcessor::getFileExtension(const QString &filePath) {
